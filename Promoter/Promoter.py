@@ -1,6 +1,6 @@
 from __future__ import print_function
+import argparse
 import iota
-from iota.adapter.wrappers import RoutingWrapper
 import logging
 import os
 import random
@@ -9,7 +9,7 @@ import time
 
 logger = logging.getLogger()
 
-def setup_stuff(name):
+def setup_logging(name):
 
     logdir = os.path.join('logs', time.strftime("%d-%m-%Y"))
     if not os.path.exists(logdir):
@@ -36,6 +36,7 @@ def get_depth():
     return random.randint(3,14)
 
 def promote_tx(txid):
+    logger.info('------------------------Start------------------------')
     node = 'http://localhost:14265'
     api = iota.Iota(node)
        
@@ -89,12 +90,17 @@ def promote_tx(txid):
             time.sleep(60)
             sleeping -= 1
 
+        logger.info('------------------------Finish------------------------')
+
 if __name__ == "__main__":
-        
-    if (len(sys.argv)) > 1:
-        setup_stuff(sys.argv[1])
-        logger.info('------------------------Start------------------------')
-        promote_tx(sys.argv[1])
+    parser = argparse.ArgumentParser(description='Promote / Reattach IOTA transaction')
+    parser.add_argument('-tx')
+
+    args = parser.parse_args()
+
+    if (args.tx is not None):
+        setup_logging(args.tx)        
+        promote_tx(args.tx)
     else:
-        logger.error('you have to specify a tx ID!')
-    logger.info('------------------------Finish------------------------')
+        setup_logging('autopromote')
+        pass    

@@ -12,7 +12,7 @@
     <Name>Promoter</Name>
     <RootNamespace>Promoter</RootNamespace>
     <LaunchProvider>Standard Python launcher</LaunchProvider>
-    <CommandLineArguments>VSOHTETNFNNLECLMANMPCCRSVG9ZSDAKXYPZJSRLMKH9ZCPTWZCGHQLYGQXQWIXKDSLHSBGCQVNUZ9999</CommandLineArguments>
+    <CommandLineArguments>-tx VSOHTETNFNNLECLMANMPCCRSVG9ZSDAKXYPZJSRLMKH9ZCPTWZCGHQLYGQXQWIXKDSLHSBGCQVNUZ9999</CommandLineArguments>
     <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
@@ -25,9 +25,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Promoter.py" />
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="promote.bat" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in
