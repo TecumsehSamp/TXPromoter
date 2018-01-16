@@ -12,7 +12,8 @@
     <Name>Promoter</Name>
     <RootNamespace>Promoter</RootNamespace>
     <LaunchProvider>Standard Python launcher</LaunchProvider>
-    <CommandLineArguments>-tx VSOHTETNFNNLECLMANMPCCRSVG9ZSDAKXYPZJSRLMKH9ZCPTWZCGHQLYGQXQWIXKDSLHSBGCQVNUZ9999</CommandLineArguments>
+    <CommandLineArguments>
+    </CommandLineArguments>
     <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">

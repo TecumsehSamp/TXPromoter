@@ -35,13 +35,35 @@ def setup_logging(name):
 def get_depth():
     return random.randint(3,14)
 
-def promote_tx(txid):
-    logger.info('------------------------Start------------------------')
-    node = 'http://localhost:14265'
-    api = iota.Iota(node)
-       
-    inputtx = iota.Transaction.from_tryte_string(api.get_trytes([iota.TransactionHash(iota.TryteString(txid.encode('ascii')))])['trytes'][0])
-    logger.info('start promoting tx (%smin): %s', round((time.time()-inputtx.timestamp)/60), txid)
+def autopromote(api):
+    items = 100
+    
+    while(True):
+        toPromote = []
+
+        tips = api.get_tips()['hashes']
+        logger.info('found %s tips - checking %s random tips', len(tips), items*5)
+        random.shuffle(tips)
+        ## TODO. *5 is too low if on running localhost!
+        chunks = [tips[x:x+items] for x in range(0, items*5, items)]
+        for chunk in chunks:
+            for x in api.get_trytes(chunk)['trytes']:
+                tx = iota.Transaction.from_tryte_string(x)
+                ## should check if bundle is confirmed already and because this is done by looking at the bundle pass on bundlehash instead of tx to promote_tx
+                if (tx.value > 1000**2 and (time.time()-tx.timestamp) > 20 * 60):
+                    toPromote.append(tx)
+
+        if (toPromote):
+            logger.info('found %s worthy tx', len(toPromote))
+            for x in toPromote:
+                promote_tx(None,api,tx)
+
+def promote_tx(txid, api, trans=None):
+    if (txid is not None):
+        inputtx = iota.Transaction.from_tryte_string(api.get_trytes([iota.TransactionHash(iota.TryteString(txid.encode('ascii')))])['trytes'][0])
+    else:
+        inputtx = trans
+    logger.info('start promoting tx (%smin): %s', round((time.time()-inputtx.timestamp)/60), inputtx.hash)
     bundlehash = inputtx.bundle_hash
     logger.info('bundle: %s', bundlehash)
 
@@ -55,8 +77,7 @@ def promote_tx(txid):
             logger.info('!!!tx confirmed!!!')
             break
 
-        txtrytes = api.get_trytes(txhashes)['trytes']        
-        for x in txtrytes:
+        for x in api.get_trytes(txhashes)['trytes']:
             tx = iota.Transaction.from_tryte_string(x)
 
             if (tx.is_tail):
@@ -74,7 +95,6 @@ def promote_tx(txid):
                             reattachtx = api.replay_bundle(tx.hash,get_depth())['bundle'][0]
                             logger.debug('created tx: %s', reattachtx.hash)
                         except Exception as err:
-                            pass
                             logger.error(format(err))
                         break
         
@@ -90,7 +110,6 @@ def promote_tx(txid):
             time.sleep(60)
             sleeping -= 1
 
-        logger.info('------------------------Finish------------------------')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Promote / Reattach IOTA transaction')
@@ -98,9 +117,16 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    api = iota.Iota('http://localhost:14265')
+
     if (args.tx is not None):
-        setup_logging(args.tx)        
-        promote_tx(args.tx)
+        setup_logging(args.tx)
+        logger.info('------------------------Start------------------------')
+        promote_tx(args.tx, api)
+        logger.info('------------------------Finish------------------------')
+        
     else:
         setup_logging('autopromote')
-        pass    
+        logger.info('------------------------Starting Autopromote------------------------')
+        autopromote(api)
+        logger.info('------------------------Finish Autopromote------------------------')
