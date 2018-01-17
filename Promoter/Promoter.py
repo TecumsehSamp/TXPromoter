@@ -40,14 +40,25 @@ def autopromote(api):
     
     while(True):
         toPromote = []
+        
+        try:
+            tips = api.get_tips()['hashes']
+        except Exception as err:
+            logger.error(format(err))
+            continue
 
-        tips = api.get_tips()['hashes']
         logger.info('found %s tips - checking %s random tips', len(tips), items*5)
         random.shuffle(tips)
         ## TODO. *5 is too low if on running localhost!
         chunks = [tips[x:x+items] for x in range(0, items*5, items)]
-        for chunk in chunks:
-            for x in api.get_trytes(chunk)['trytes']:
+        for chunk in chunks:            
+            try:
+                trytes = api.get_trytes(chunk)['trytes']
+            except Exception as err:
+                logger.error(format(err))
+                continue
+
+            for x in trytes:
                 tx = iota.Transaction.from_tryte_string(x)
                 ## should check if bundle is confirmed already and because this is done by looking at the bundle pass on bundlehash instead of tx to promote_tx
                 if (tx.value > 1000**2 and (time.time()-tx.timestamp) > 20 * 60):
@@ -60,7 +71,12 @@ def autopromote(api):
 
 def promote_tx(txid, api, trans=None):
     if (txid is not None):
-        inputtx = iota.Transaction.from_tryte_string(api.get_trytes([iota.TransactionHash(iota.TryteString(txid.encode('ascii')))])['trytes'][0])
+        try:
+            trytes = api.get_trytes([iota.TransactionHash(iota.TryteString(txid.encode('ascii')))])['trytes'][0]
+        except Exception as err:
+                logger.error(format(err))
+                return
+        inputtx = iota.Transaction.from_tryte_string(trytes)
     else:
         inputtx = trans
     logger.info('start promoting tx (%smin): %s', round((time.time()-inputtx.timestamp)/60), inputtx.hash)
@@ -70,14 +86,31 @@ def promote_tx(txid, api, trans=None):
     count = 0
     maxCount = 5
     while (True):
-        txhashes = api.find_transactions([bundlehash])['hashes']
+        try:
+            txhashes = api.find_transactions([bundlehash])['hashes']
+        except Exception as err:
+                logger.error(format(err))
+                continue
+
         logger.info('found %s tx in bundle', len(txhashes))
 
-        if any(confirmed == True for confirmed in api.get_latest_inclusion(txhashes)['states'].values()):
+        try:
+            bundlestates = api.get_latest_inclusion(txhashes)['states'].values()
+        except Exception as err:
+                logger.error(format(err))
+                continue
+
+        if any(confirmed == True for confirmed in bundlestates):
             logger.info('!!!tx confirmed!!!')
             break
+        
+        try:
+            trytes = api.get_trytes(txhashes)['trytes']
+        except Exception as err:
+                logger.error(format(err))
+                continue
 
-        for x in api.get_trytes(txhashes)['trytes']:
+        for x in trytes:
             tx = iota.Transaction.from_tryte_string(x)
 
             if (tx.is_tail):
@@ -89,7 +122,13 @@ def promote_tx(txid, api, trans=None):
                     except Exception as err:
                         logger.error(format(err))
                 else:
-                    if (api.is_reattachable([tx.address])['reattachable'][0]):
+                    try:
+                        reattachble = api.is_reattachable([tx.address])['reattachable'][0]
+                    except Exception as err:
+                        logger.error(format(err))
+                        continue
+
+                    if (reattachble):
                         try:
                             logger.info('reattaching tx: %s', tx.hash)
                             reattachtx = api.replay_bundle(tx.hash,get_depth())['bundle'][0]
