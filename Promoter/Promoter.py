@@ -85,13 +85,12 @@ def autopromote(api):
                 tx = iota.Transaction.from_tryte_string(x)
                 if (tx.bundle_hash not in badbundles):
                     if ((tx.value > 1000**2) and ((time.time()-tx.timestamp) > 20 * 60) and (not isConfirmed(api, tx.bundle_hash))):
-                        print(tx.hash)
                         toPromote.append(tx)
 
         if (toPromote):
             logger.info('found %s worthy tx', len(toPromote))
             for x in toPromote:
-                promote(api, None, tx)
+                promote(api, None, x)
 
 def promote(api, txid, trans=None):
     if (txid is not None):
