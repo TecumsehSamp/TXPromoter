@@ -34,8 +34,9 @@ def setup_logging(name):
     fh.setFormatter(formatter)
     logger.addHandler(fh)
 
+## no clue which value is fine.. had 3-14, changed to 3-7 now
 def get_depth():
-    return random.randint(3,14)
+    return random.randint(3,7)
 
 def isConfirmed(api, bundlehash):
     try:
@@ -44,17 +45,20 @@ def isConfirmed(api, bundlehash):
         badbundles.append(bundlehash)
         logger.error('isConfirmed1')
         logger.error(format(err.context))
-        return False
+        return True
 
     try:
         bundlestates = api.get_latest_inclusion(txhashes)['states'].values()
     except Exception as err:
+        badbundles.append(bundlehash)
         logger.error('isConfirmed2')
         logger.error(format(err.context))
-        return False
+        return True
 
     if any(confirmed == True for confirmed in bundlestates):        
         return True
+    else:
+        return False
 
 def autopromote(api):
     chunksize = 200
