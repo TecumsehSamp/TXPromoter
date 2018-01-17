@@ -35,6 +35,22 @@ def setup_logging(name):
 def get_depth():
     return random.randint(3,14)
 
+def isConfirmed(api, bundlehash):
+    try:
+        txhashes = api.find_transactions([bundlehash])['hashes']
+    except Exception as err:
+        logger.error(format(err))
+        return False
+
+    try:
+        bundlestates = api.get_latest_inclusion(txhashes)['states'].values()
+    except Exception as err:
+            logger.error(format(err))
+            return False
+
+    if any(confirmed == True for confirmed in bundlestates):        
+        return True
+
 def autopromote(api):
     items = 100
     
@@ -60,16 +76,15 @@ def autopromote(api):
 
             for x in trytes:
                 tx = iota.Transaction.from_tryte_string(x)
-                ## should check if bundle is confirmed already and because this is done by looking at the bundle pass on bundlehash instead of tx to promote_tx
-                if (tx.value > 1000**2 and (time.time()-tx.timestamp) > 20 * 60):
+                if ((tx.value > 1000**2) and ((time.time()-tx.timestamp) > 20 * 60) and (not isConfirmed(api, tx.bundle_hash))):
                     toPromote.append(tx)
 
         if (toPromote):
             logger.info('found %s worthy tx', len(toPromote))
             for x in toPromote:
-                promote_tx(None,api,tx)
+                promote_tx(api, None, tx)
 
-def promote_tx(txid, api, trans=None):
+def promote_tx(api, txid, trans=None):
     if (txid is not None):
         try:
             trytes = api.get_trytes([iota.TransactionHash(iota.TryteString(txid.encode('ascii')))])['trytes'][0]
@@ -79,30 +94,23 @@ def promote_tx(txid, api, trans=None):
         inputtx = iota.Transaction.from_tryte_string(trytes)
     else:
         inputtx = trans
-    logger.info('start promoting tx (%smin): %s', round((time.time()-inputtx.timestamp)/60), inputtx.hash)
-    bundlehash = inputtx.bundle_hash
-    logger.info('bundle: %s', bundlehash)
-
+    
+    logger.info('start promoting tx (%smin): %s (%s)', round((time.time()-inputtx.timestamp)/60), inputtx.hash, inputtx.bundle_hash)
+    
     count = 0
     maxCount = 5
     while (True):
-        try:
-            txhashes = api.find_transactions([bundlehash])['hashes']
-        except Exception as err:
-                logger.error(format(err))
-                continue
-
-        logger.info('found %s tx in bundle', len(txhashes))
-
-        try:
-            bundlestates = api.get_latest_inclusion(txhashes)['states'].values()
-        except Exception as err:
-                logger.error(format(err))
-                continue
-
-        if any(confirmed == True for confirmed in bundlestates):
+        if (isConfirmed(api, inputtx.bundle_hash)):
             logger.info('!!!tx confirmed!!!')
             break
+
+        try:
+            txhashes = api.find_transactions([inputtx.bundle_hash])['hashes']
+        except Exception as err:
+            logger.error(format(err))
+            continue
+
+        logger.info('found %s tx in bundle', len(txhashes))
         
         try:
             trytes = api.get_trytes(txhashes)['trytes']
@@ -161,7 +169,7 @@ if __name__ == "__main__":
     if (args.tx is not None):
         setup_logging(args.tx)
         logger.info('------------------------Start------------------------')
-        promote_tx(args.tx, api)
+        promote_tx(api, args.tx)
         logger.info('------------------------Finish------------------------')
         
     else:
