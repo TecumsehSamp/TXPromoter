@@ -8,6 +8,8 @@ import sys
 import time
 
 logger = logging.getLogger()
+# TODO: Maybe not needed. Bundles with huge amount of tx will crash the api call (remotely at least)
+badbundles = []
 
 def setup_logging(name):
 
@@ -39,20 +41,24 @@ def isConfirmed(api, bundlehash):
     try:
         txhashes = api.find_transactions([bundlehash])['hashes']
     except Exception as err:
-        logger.error(format(err))
+        badbundles.append(bundlehash)
+        logger.error('isConfirmed1')
+        logger.error(format(err.context))
         return False
 
     try:
         bundlestates = api.get_latest_inclusion(txhashes)['states'].values()
     except Exception as err:
-            logger.error(format(err))
-            return False
+        logger.error('isConfirmed2')
+        logger.error(format(err.context))
+        return False
 
     if any(confirmed == True for confirmed in bundlestates):        
         return True
 
 def autopromote(api):
-    items = 100
+    chunksize = 200
+    chunkfactor = 5
     
     while(True):
         toPromote = []
@@ -60,37 +66,41 @@ def autopromote(api):
         try:
             tips = api.get_tips()['hashes']
         except Exception as err:
-            logger.error(format(err))
+            logger.error('autopromote1')
+            logger.error(format(err.context))
             continue
 
-        logger.info('found %s tips - checking %s random tips', len(tips), items*5)
+        logger.info('found %s tips - checking %s random tips', len(tips), chunksize*chunkfactor)
         random.shuffle(tips)
-        ## TODO. *5 is too low if on running localhost!
-        chunks = [tips[x:x+items] for x in range(0, items*5, items)]
+        chunks = [tips[x:x+chunksize] for x in range(0, chunksize*chunkfactor, chunksize)]
         for chunk in chunks:            
             try:
                 trytes = api.get_trytes(chunk)['trytes']
             except Exception as err:
-                logger.error(format(err))
+                logger.error('autopromote2')
+                logger.error(format(err.context))
                 continue
 
             for x in trytes:
                 tx = iota.Transaction.from_tryte_string(x)
-                if ((tx.value > 1000**2) and ((time.time()-tx.timestamp) > 20 * 60) and (not isConfirmed(api, tx.bundle_hash))):
-                    toPromote.append(tx)
+                if (tx.bundle_hash not in badbundles):
+                    if ((tx.value > 1000**2) and ((time.time()-tx.timestamp) > 20 * 60) and (not isConfirmed(api, tx.bundle_hash))):
+                        print(tx.hash)
+                        toPromote.append(tx)
 
         if (toPromote):
             logger.info('found %s worthy tx', len(toPromote))
             for x in toPromote:
-                promote_tx(api, None, tx)
+                promote(api, None, tx)
 
-def promote_tx(api, txid, trans=None):
+def promote(api, txid, trans=None):
     if (txid is not None):
         try:
             trytes = api.get_trytes([iota.TransactionHash(iota.TryteString(txid.encode('ascii')))])['trytes'][0]
         except Exception as err:
-                logger.error(format(err))
-                return
+            logger.error('promote1')
+            logger.error(format(err.context))
+            return
         inputtx = iota.Transaction.from_tryte_string(trytes)
     else:
         inputtx = trans
@@ -107,7 +117,8 @@ def promote_tx(api, txid, trans=None):
         try:
             txhashes = api.find_transactions([inputtx.bundle_hash])['hashes']
         except Exception as err:
-            logger.error(format(err))
+            logger.error('promote2')
+            logger.error(format(err.context))
             continue
 
         logger.info('found %s tx in bundle', len(txhashes))
@@ -115,8 +126,9 @@ def promote_tx(api, txid, trans=None):
         try:
             trytes = api.get_trytes(txhashes)['trytes']
         except Exception as err:
-                logger.error(format(err))
-                continue
+            logger.error('promote3')
+            logger.error(format(err.context))
+            continue
 
         for x in trytes:
             tx = iota.Transaction.from_tryte_string(x)
@@ -128,12 +140,14 @@ def promote_tx(api, txid, trans=None):
                         promotiontx = api.promote_transaction(tx.hash, get_depth())['bundle'][0]
                         logger.debug('created tx: %s', promotiontx.hash)
                     except Exception as err:
-                        logger.error(format(err))
+                        logger.error('promote4')
+                        logger.error(format(err.context))
                 else:
                     try:
                         reattachble = api.is_reattachable([tx.address])['reattachable'][0]
                     except Exception as err:
-                        logger.error(format(err))
+                        logger.error('promote5')
+                        logger.error(format(err.context))
                         continue
 
                     if (reattachble):
@@ -142,7 +156,8 @@ def promote_tx(api, txid, trans=None):
                             reattachtx = api.replay_bundle(tx.hash,get_depth())['bundle'][0]
                             logger.debug('created tx: %s', reattachtx.hash)
                         except Exception as err:
-                            logger.error(format(err))
+                            logger.error('promote6')
+                            logger.error(format(err.context))
                         break
         
         if (count == maxCount):
@@ -169,7 +184,7 @@ if __name__ == "__main__":
     if (args.tx is not None):
         setup_logging(args.tx)
         logger.info('------------------------Start------------------------')
-        promote_tx(api, args.tx)
+        promote(api, args.tx)
         logger.info('------------------------Finish------------------------')
         
     else:
