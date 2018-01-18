@@ -34,9 +34,8 @@ def setup_logging(name):
     fh.setFormatter(formatter)
     logger.addHandler(fh)
 
-## no clue which value is fine.. had 3-14, changed to 3-7 now
 def get_depth():
-    return random.randint(3,7)
+    return random.randint(3,14)
 
 def isConfirmed(api, bundlehash):
     try:
@@ -111,7 +110,7 @@ def promote(api, txid, trans=None):
     logger.info('start promoting tx (%smin): %s (%s)', round((time.time()-inputtx.timestamp)/60), inputtx.hash, inputtx.bundle_hash)
     
     count = 0
-    maxCount = 5
+    maxCount = 3
     while (True):
         if (isConfirmed(api, inputtx.bundle_hash)):
             logger.info('!!!tx confirmed!!!')
