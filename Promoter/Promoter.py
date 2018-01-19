@@ -37,31 +37,31 @@ def setup_logging(name):
 def get_depth():
     return random.randint(3,14)
 
-def isConfirmed(api, bundlehash):
+def needsConfirm(api, bundlehash):
     try:
         txhashes = api.find_transactions([bundlehash])['hashes']
     except Exception as err:
         badbundles.append(bundlehash)
-        logger.error('isConfirmed1')
+        logger.error('needsConfirm1')
         logger.error(format(err.context))
-        return True
+        return False
 
     try:
         bundlestates = api.get_latest_inclusion(txhashes)['states'].values()
     except Exception as err:
         badbundles.append(bundlehash)
-        logger.error('isConfirmed2')
-        logger.error(format(err.context))
-        return True
-
-    if any(confirmed == True for confirmed in bundlestates):        
-        return True
-    else:
+        #logger.error('needsConfirm2')
+        #logger.error(format(err.context))
         return False
 
+    if any(confirmed == True for confirmed in bundlestates):        
+        return False
+    else:
+        return True
+
 def autopromote(api):
-    chunksize = 200
-    chunkfactor = 5
+    chunksize = 1000
+    chunkfactor = 1
     
     while(True):
         toPromote = []
@@ -87,13 +87,8 @@ def autopromote(api):
             for x in trytes:
                 tx = iota.Transaction.from_tryte_string(x)
                 if (tx.bundle_hash not in badbundles):
-                    if ((tx.value > 1000**2) and ((time.time()-tx.timestamp) > 20 * 60) and (not isConfirmed(api, tx.bundle_hash))):
-                        toPromote.append(tx)
-
-        if (toPromote):
-            logger.info('found %s worthy tx', len(toPromote))
-            for x in toPromote:
-                promote(api, None, x)
+                    if ((tx.value > 1000**3) and ((time.time()-tx.timestamp) > 15 * 60) and (needsConfirm(api, tx.bundle_hash))):
+                        promote(api, None, tx)
 
 def promote(api, txid, trans=None):
     if (txid is not None):
@@ -112,7 +107,7 @@ def promote(api, txid, trans=None):
     count = 0
     maxCount = 3
     while (True):
-        if (isConfirmed(api, inputtx.bundle_hash)):
+        if (not needsConfirm(api, inputtx.bundle_hash)):
             logger.info('!!!tx confirmed!!!')
             break
 
@@ -143,24 +138,23 @@ def promote(api, txid, trans=None):
                         logger.debug('created tx: %s', promotiontx.hash)
                     except Exception as err:
                         logger.error('promote4')
-                        logger.error(format(err.context))
+                        logger.error(format(err))
                 else:
                     try:
-                        reattachble = api.is_reattachable([tx.address])['reattachable'][0]
+                        reattachable = api.is_reattachable([tx.address])['reattachable'][0]
                     except Exception as err:
                         logger.error('promote5')
                         logger.error(format(err.context))
                         continue
 
-                    if (reattachble):
+                    if (reattachable):
                         try:
                             logger.info('reattaching tx: %s', tx.hash)
-                            reattachtx = api.replay_bundle(tx.hash,get_depth())['bundle'][0]
+                            reattachtx = api.replay_bundle(tx.hash, get_depth())['bundle'][0]
                             logger.debug('created tx: %s', reattachtx.hash)
                         except Exception as err:
                             logger.error('promote6')
-                            logger.error(format(err.context))
-                        break
+                            logger.error(format(err))
         
         if (count == maxCount):
             count = 0
