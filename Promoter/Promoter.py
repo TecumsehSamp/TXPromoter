@@ -152,7 +152,7 @@ def spam(api, txid, trans=None):
     logger.info('start promoting tx (%smin, %smi): %s (%s)', round((startTime-inputtx.timestamp)/60), round(inputtx.value/1000**2), inputtx.hash, inputtx.bundle_hash)
     
     count = 0
-    maxCount = 10
+    maxCount = 5
     sleeping = 0
     while (True):
         try:
@@ -161,7 +161,7 @@ def spam(api, txid, trans=None):
             break
         if (confirmed):
             logger.info('bundle confirmed: %s', inputtx.bundle_hash)
-            suclogger('%smin - %smi: %s', round((time.time()-startTime)/60), round(inputtx.value/1000**2), inputtx.bundle_hash)
+            suclogger.info('%smin - %smi: %s', round((time.time()-startTime)/60), round(inputtx.value/1000**2), inputtx.bundle_hash)
             break
 
         try:
@@ -185,14 +185,14 @@ def spam(api, txid, trans=None):
                 if (count < maxCount):
                     try:
                         if promote(api, tx) and not sleeping:
-                                sleeping = random.randint(2,5)
+                                sleeping = random.randint(1,3)
                     except:
                         continue
                 else:
                     try:
                         if reattach(api, tx):
                             if not sleeping:
-                                sleeping = random.randint(2,5)
+                                sleeping = random.randint(1,3)
                             break
                     except:
                         continue
