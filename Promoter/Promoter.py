@@ -6,9 +6,11 @@ import os
 import random
 import sys
 import time
+import traceback
 
-logger = logging.getLogger()
-# TODO: Maybe not needed. Bundles with huge amount of tx will crash the api call (remotely at least)
+logger = logging.getLogger('main')
+suclogger = logging.getLogger('success')
+# TODO: Maybe not needed. Some bundles will make the api call throw (via remote at least) - just exclude them
 badbundles = []
 
 def setup_logging(name):
@@ -34,69 +36,66 @@ def setup_logging(name):
     fh.setFormatter(formatter)
     logger.addHandler(fh)
 
+    fh = logging.FileHandler(os.path.join(logdir,time.strftime("%H%M%S")+"_"+name+"_success"))
+    fh.setFormatter(formatter)
+    suclogger.addHandler(fh)
+
 def get_depth():
     return random.randint(3,14)
 
-def needsConfirm(api, bundlehash):
+def is_confirmed(api, bundlehash):
     try:
         txhashes = api.find_transactions([bundlehash])['hashes']
     except Exception as err:
         badbundles.append(bundlehash)
-        logger.error('needsConfirm1')
-        logger.error(format(err.context))
-        return False
+        logger.error(traceback.format_exc())
+        raise
 
     try:
         bundlestates = api.get_latest_inclusion(txhashes)['states'].values()
     except Exception as err:
         badbundles.append(bundlehash)
-        #logger.error('needsConfirm2')
-        #logger.error(format(err.context))
-        return False
+        logger.error(traceback.format_exc())
+        raise
 
     if any(confirmed == True for confirmed in bundlestates):        
-        return False
-    else:
         return True
+    else:
+        return False
 
 def autopromote(api):
-    chunksize = 1000
-    chunkfactor = 1
-    
     while(True):
-        toPromote = []
-        
         try:
             tips = api.get_tips()['hashes']
         except Exception as err:
-            logger.error('autopromote1')
-            logger.error(format(err.context))
+            logger.error(traceback.format_exc())
             continue
 
-        logger.info('found %s tips - checking %s random tips', len(tips), chunksize*chunkfactor)
-        random.shuffle(tips)
-        chunks = [tips[x:x+chunksize] for x in range(0, chunksize*chunkfactor, chunksize)]
-        for chunk in chunks:            
-            try:
-                trytes = api.get_trytes(chunk)['trytes']
-            except Exception as err:
-                logger.error('autopromote2')
-                logger.error(format(err.context))
-                continue
+        chunksize = min(len(tips), 1000)
 
-            for x in trytes:
-                tx = iota.Transaction.from_tryte_string(x)
-                if (tx.bundle_hash not in badbundles):
-                    if ((tx.value > 1000**3) and ((time.time()-tx.timestamp) > 15 * 60) and (needsConfirm(api, tx.bundle_hash))):
+        logger.info('found %s tips - checking %s random tips', len(tips), chunksize)
+        random.shuffle(tips)
+        try:
+            trytes = api.get_trytes(tips[:chunksize])['trytes']
+        except Exception as err:
+            logger.error(traceback.format_exc())
+            continue
+
+        for x in trytes:
+            tx = iota.Transaction.from_tryte_string(x)
+            if (tx.bundle_hash not in badbundles):
+                try:
+                    if ((tx.value > 1000**3) and ((time.time()-tx.timestamp) < 30 * 60) and not is_confirmed(api, tx.bundle_hash)):
                         promote(api, None, tx)
+                except Exception:
+                    pass
 
 def promote(api, txid, trans=None):
     if (txid is not None):
         try:
             trytes = api.get_trytes([iota.TransactionHash(iota.TryteString(txid.encode('ascii')))])['trytes'][0]
         except Exception as err:
-            logger.error('promote1')
-            logger.error(format(err.context))
+            logger.error(traceback.format_exc())
             return
         inputtx = iota.Transaction.from_tryte_string(trytes)
     else:
@@ -107,24 +106,27 @@ def promote(api, txid, trans=None):
     count = 0
     maxCount = 3
     while (True):
-        if (not needsConfirm(api, inputtx.bundle_hash)):
-            logger.info('!!!tx confirmed!!!')
+        try:
+            confirmed = is_confirmed(api, inputtx.bundle_hash)
+        except Exception:
+            break
+        if (confirmed):
+            logger.info('bundle confirmed: %s', inputtx.bundle_hash)
+            suclogger(inputtx.bundle_hash)
             break
 
         try:
             txhashes = api.find_transactions([inputtx.bundle_hash])['hashes']
         except Exception as err:
-            logger.error('promote2')
-            logger.error(format(err.context))
+            logger.error(traceback.format_exc())
             continue
 
-        logger.info('found %s tx in bundle', len(txhashes))
+        logger.info('found %s tx in bundle. trying to promote/reattach', len(txhashes))
         
         try:
             trytes = api.get_trytes(txhashes)['trytes']
         except Exception as err:
-            logger.error('promote3')
-            logger.error(format(err.context))
+            logger.error(traceback.format_exc())
             continue
 
         for x in trytes:
@@ -133,28 +135,49 @@ def promote(api, txid, trans=None):
             if (tx.is_tail):
                 if (count < maxCount):
                     try:
-                        logger.info('promoting tx: %s', tx.hash)
-                        promotiontx = api.promote_transaction(tx.hash, get_depth())['bundle'][0]
-                        logger.debug('created tx: %s', promotiontx.hash)
+                        promotable = api.helpers.is_promotable(tx.hash)
                     except Exception as err:
-                        logger.error('promote4')
-                        logger.error(format(err))
+                        logger.error(traceback.format_exc())
+                        continue
+
+                    if (promotable):
+                        try:
+                            logger.info('promoting tx: %s', tx.hash)
+                            api.promote_transaction(tx.hash, get_depth())
+                            logger.info('promoted successfully')
+                        except Exception as err:
+                            if('errors' in err.context):
+                                if('inconsistent tips pair selected' in err.context['errors'][0]):
+                                    pass
+                                else:
+                                    logger.error(traceback.format_exc())
+                            else:
+                                logger.error(traceback.format_exc())
                 else:
                     try:
                         reattachable = api.is_reattachable([tx.address])['reattachable'][0]
                     except Exception as err:
-                        logger.error('promote5')
-                        logger.error(format(err.context))
+                        logger.error(traceback.format_exc())
                         continue
 
                     if (reattachable):
                         try:
                             logger.info('reattaching tx: %s', tx.hash)
-                            reattachtx = api.replay_bundle(tx.hash, get_depth())['bundle'][0]
-                            logger.debug('created tx: %s', reattachtx.hash)
+                            api.replay_bundle(tx.hash, get_depth())
+                            logger.info('reattached successfully')
+                            break
                         except Exception as err:
-                            logger.error('promote6')
-                            logger.error(format(err))
+                            if('errors' in err.context):
+                                if('inconsistent tips pair selected' in err.context['errors'][0]):
+                                    pass
+                                elif ('has invalid signature' in err.context['errors'][0]):
+                                    badbundles.append(tx.bundle_hash)
+                                    logger.error(err)
+                                    return
+                                else:
+                                    logger.error(traceback.format_exc())
+                            else:
+                                logger.error(traceback.format_exc())
         
         if (count == maxCount):
             count = 0
@@ -174,8 +197,8 @@ if __name__ == "__main__":
     parser.add_argument('-tx')
 
     args = parser.parse_args()
-
-    api = iota.Iota('http://localhost:14265')
+    #api = iota.Iota('http://localhost:14265')
+    api = iota.Iota('http://104.199.17.56:14265')
 
     if (args.tx is not None):
         setup_logging(args.tx)
