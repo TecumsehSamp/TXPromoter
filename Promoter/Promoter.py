@@ -197,8 +197,7 @@ if __name__ == "__main__":
     parser.add_argument('-tx')
 
     args = parser.parse_args()
-    #api = iota.Iota('http://localhost:14265')
-    api = iota.Iota('http://104.199.17.56:14265')
+    api = iota.Iota('http://localhost:14265')
 
     if (args.tx is not None):
         setup_logging(args.tx)
