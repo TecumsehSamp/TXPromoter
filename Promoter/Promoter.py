@@ -38,7 +38,7 @@ def setup_logging(name):
 
     fh = logging.FileHandler(os.path.join(logdir,time.strftime("%H%M%S")+"_"+name+"_success"))
     fh.setFormatter(formatter)
-    logger.setLevel(logging.INFO)
+    suclogger.setLevel(logging.INFO)
     suclogger.addHandler(fh)
 
 def get_depth():
@@ -76,6 +76,7 @@ def promote(api, tx):
             logger.info('promoting tx: %s', tx.hash)
             api.promote_transaction(tx.hash, get_depth())
             logger.info('promoted successfully')
+            return True
         except iota.adapter.BadApiResponse as err:
             if('inconsistent tips pair selected' in err.context['response']['errors'][0]):
                 pass
@@ -98,6 +99,7 @@ def reattach(api, tx):
             logger.info('reattaching tx: %s', tx.hash)
             api.replay_bundle(tx.hash, get_depth())
             logger.info('reattached successfully')
+            return True
         except iota.adapter.BadApiResponse as err:
             if('inconsistent tips pair selected' in err.context['response']['errors'][0]):
                 pass
@@ -151,6 +153,7 @@ def spam(api, txid, trans=None):
     
     count = 0
     maxCount = 10
+    sleeping = 0
     while (True):
         try:
             confirmed = is_confirmed(api, inputtx.bundle_hash)
@@ -181,31 +184,30 @@ def spam(api, txid, trans=None):
             if (tx.is_tail):
                 if (count < maxCount):
                     try:
-                        promote(api, tx)
+                        if promote(api, tx) and not sleeping:
+                                sleeping = random.randint(2,5)
                     except:
                         continue
                 else:
                     try:
-                        reattach(api, tx)
-                        break
+                        if reattach(api, tx):
+                            if not sleeping:
+                                sleeping = random.randint(2,5)
+                            break
                     except:
                         continue
-        
+
         if (count == maxCount):
-            count = 0
+            count = 0            
         else:
             count += 1
 
         logger.info('finished. %s more runs until reattach', maxCount-count)
         
-        ''' disabled sleep for testing purposes
-        sleeping = random.randint(0,2)
         while (sleeping > 0):
             logger.info('%s min sleep...', sleeping)
             time.sleep(60)
             sleeping -= 1
-        '''
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Promote / Reattach IOTA transaction')
