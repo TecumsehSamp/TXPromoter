@@ -133,11 +133,12 @@ def autopromote(api):
             if (tx.bundle_hash not in badbundles):
                 try:
                     if ((tx.value > 1000**2) and ((time.time()-tx.timestamp) < 30 * 60) and not is_confirmed(api, tx.bundle_hash)):
-                        spam(api, None, tx)
+                        spam(api, None, tx, 60*60)
                 except:
+                    logger.error(traceback.format_exc())
                     pass
 
-def spam(api, txid, trans=None):
+def spam(api, txid, trans=None, maxTime=None):
     if (txid is not None):
         try:
             trytes = api.get_trytes([iota.TransactionHash(iota.TryteString(txid.encode('ascii')))])['trytes'][0]
@@ -208,6 +209,10 @@ def spam(api, txid, trans=None):
             logger.info('%s min sleep...', sleeping)
             time.sleep(60)
             sleeping -= 1
+
+        if(maxTime and ((time.time()-startTime) > maxTime)):
+           logger.error('Did take too long (%s).. Will skip', round((time.time()-startTime)/60))
+           break
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Promote / Reattach IOTA transaction')
