@@ -9,11 +9,11 @@ import time
 import traceback
 
 logger = logging.getLogger('main')
-suclogger = logging.getLogger('success')
+sumlogger = logging.getLogger('success')
 # TODO: Maybe not needed. Some bundles will make the api call throw (via remote at least) - just exclude them
 badbundles = []
 
-def setup_logging(name):
+def setup_logging(name, summary=True):
 
     logdir = os.path.join('logs', time.strftime("%d-%m-%Y"))
     if not os.path.exists(logdir):
@@ -36,10 +36,11 @@ def setup_logging(name):
     fh.setFormatter(formatter)
     logger.addHandler(fh)
 
-    fh = logging.FileHandler(os.path.join(logdir,time.strftime("%H%M%S")+"_"+name+"_success"))
-    fh.setFormatter(formatter)
-    suclogger.setLevel(logging.INFO)
-    suclogger.addHandler(fh)
+    if summary:
+        fh = logging.FileHandler(os.path.join(logdir,time.strftime("%H%M%S")+"_"+name+"_success"))
+        fh.setFormatter(formatter)
+        sumlogger.setLevel(logging.INFO)
+        sumlogger.addHandler(fh)
 
 def get_depth():
     return random.randint(3,14)
@@ -162,7 +163,7 @@ def spam(api, txid, trans=None, maxTime=None):
             break
         if (confirmed):
             logger.info('bundle confirmed: %s', inputtx.bundle_hash)
-            suclogger.info('%smin - %smi: %s', round((time.time()-startTime)/60), round(inputtx.value/1000**2), inputtx.bundle_hash)
+            sumlogger.info('Success: %smin - %smi: %s', round((time.time()-startTime)/60), round(inputtx.value/1000**2), inputtx.bundle_hash)
             break
 
         try:
@@ -212,6 +213,7 @@ def spam(api, txid, trans=None, maxTime=None):
 
         if (maxTime and ((time.time()-startTime) > maxTime)):
            logger.error('Did take too long (%s).. Will skip', round((time.time()-startTime)/60))
+           sumlogger.info('Timeout: %smin - %smi: %s', round((time.time()-startTime)/60), round(inputtx.value/1000**2), inputtx.bundle_hash)
            break
 
 if __name__ == "__main__":
@@ -222,7 +224,7 @@ if __name__ == "__main__":
     api = iota.Iota('http://localhost:14265')
 
     if (args.tx is not None):
-        setup_logging(args.tx)
+        setup_logging(args.tx, False)
         logger.info('------------------------Start------------------------')
         spam(api, args.tx, 180*60)
         logger.info('------------------------Finish------------------------')
