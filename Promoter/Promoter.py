@@ -1,30 +1,31 @@
 from __future__ import print_function
+
 import argparse
-import iota
 import logging
 import os
 import random
-import sys
 import time
 import traceback
+
+import iota
 
 logger = logging.getLogger('main')
 sumlogger = logging.getLogger('success')
 # TODO: Maybe not needed. Some bundles will make the api call throw (via remote at least) - just exclude them
 badbundles = []
 
-def setup_logging(name, summary=True):
 
+def setup_logging(name, summary=True):
     logdir = os.path.join('logs', time.strftime("%d-%m-%Y"))
     if not os.path.exists(logdir):
         os.makedirs(logdir)
-    
+
     os.environ['TZ'] = 'Europe/Amsterdam'
     try:
         time.tzset()
     except Exception:
         pass
-    
+
     logger.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s | %(levelname)s | %(message)s', '%d.%m.%Y %H:%M:%S')
 
@@ -32,18 +33,20 @@ def setup_logging(name, summary=True):
     ch.setFormatter(formatter)
     logger.addHandler(ch)
 
-    fh = logging.FileHandler(os.path.join(logdir,time.strftime("%H%M%S")+"_"+name))
+    fh = logging.FileHandler(os.path.join(logdir, time.strftime("%H%M%S") + "_" + name))
     fh.setFormatter(formatter)
     logger.addHandler(fh)
 
     if summary:
-        fh = logging.FileHandler(os.path.join(logdir,time.strftime("%H%M%S")+"_"+name+"_success"))
+        fh = logging.FileHandler(os.path.join(logdir, time.strftime("%H%M%S") + "_" + name + "_success"))
         fh.setFormatter(formatter)
         sumlogger.setLevel(logging.INFO)
         sumlogger.addHandler(fh)
 
+
 def get_depth():
-    return random.randint(3,14)
+    return random.randint(3, 14)
+
 
 def is_confirmed(api, bundlehash):
     try:
@@ -60,10 +63,11 @@ def is_confirmed(api, bundlehash):
         logger.error(traceback.format_exc())
         raise
 
-    if any(confirmed == True for confirmed in bundlestates):        
+    if any(confirmed is True for confirmed in bundlestates):
         return True
     else:
         return False
+
 
 def promote(api, tx):
     try:
@@ -72,14 +76,14 @@ def promote(api, tx):
         logger.error(traceback.format_exc())
         raise
 
-    if (promotable):
+    if promotable:
         try:
             logger.info('promoting tx: %s', tx.hash)
             api.promote_transaction(tx.hash, get_depth())
             logger.info('promoted successfully')
             return True
         except iota.adapter.BadApiResponse as err:
-            if('inconsistent tips pair selected' in err.context['response']['errors'][0]):
+            if 'inconsistent tips pair selected' in err.context['response']['errors'][0]:
                 pass
             else:
                 logger.error(traceback.format_exc())
@@ -87,6 +91,7 @@ def promote(api, tx):
         except:
             logger.error(traceback.format_exc())
             raise
+
 
 def reattach(api, tx):
     try:
@@ -95,14 +100,14 @@ def reattach(api, tx):
         logger.error(traceback.format_exc())
         raise
 
-    if (reattachable):
+    if reattachable:
         try:
             logger.info('reattaching tx: %s', tx.hash)
             api.replay_bundle(tx.hash, get_depth())
             logger.info('reattached successfully')
             return True
         except iota.adapter.BadApiResponse as err:
-            if('inconsistent tips pair selected' in err.context['response']['errors'][0]):
+            if 'inconsistent tips pair selected' in err.context['response']['errors'][0]:
                 pass
             else:
                 logger.error(traceback.format_exc())
@@ -111,8 +116,9 @@ def reattach(api, tx):
             logger.error(traceback.format_exc())
             raise
 
+
 def autopromote(api):
-    while(True):
+    while True:
         try:
             tips = api.get_tips()['hashes']
         except:
@@ -131,16 +137,18 @@ def autopromote(api):
 
         for x in trytes:
             tx = iota.Transaction.from_tryte_string(x)
-            if (tx.bundle_hash not in badbundles):
+            if tx.bundle_hash not in badbundles:
                 try:
-                    if ((tx.value > 1000**2) and ((time.time()-tx.timestamp) < 30 * 60) and not is_confirmed(api, tx.bundle_hash)):
-                        spam(api, None, tx, 60*60)
+                    if (tx.value > 1000 ** 2) and ((time.time() - tx.timestamp) < 30 * 60) and not is_confirmed(api,
+                                                                                                                tx.bundle_hash):
+                        spam(api, None, tx, 60 * 60)
                 except:
                     logger.error(traceback.format_exc())
                     pass
 
-def spam(api, txid, trans=None, maxTime=None):
-    if (txid is not None):
+
+def spam(api, txid, trans=None, max_time=None):
+    if txid is not None:
         try:
             trytes = api.get_trytes([iota.TransactionHash(iota.TryteString(txid.encode('ascii')))])['trytes'][0]
         except:
@@ -149,21 +157,23 @@ def spam(api, txid, trans=None, maxTime=None):
         inputtx = iota.Transaction.from_tryte_string(trytes)
     else:
         inputtx = trans
-    
-    startTime = time.time()
-    logger.info('start promoting tx (%smin, %smi): %s (%s)', round((startTime-inputtx.timestamp)/60), round(inputtx.value/1000**2), inputtx.hash, inputtx.bundle_hash)
-    
+
+    start_time = time.time()
+    logger.info('start promoting tx (%smin, %smi): %s (%s)', round((start_time - inputtx.timestamp) / 60),
+                round(inputtx.value / 1000 ** 2), inputtx.hash, inputtx.bundle_hash)
+
     count = 0
-    maxCount = 5
+    max_count = 5
     sleeping = 0
-    while (True):
+    while True:
         try:
             confirmed = is_confirmed(api, inputtx.bundle_hash)
         except:
             break
-        if (confirmed):
+        if confirmed:
             logger.info('bundle confirmed: %s', inputtx.bundle_hash)
-            sumlogger.info('Success: %smin - %smi: %s', round((time.time()-startTime)/60), round(inputtx.value/1000**2), inputtx.bundle_hash)
+            sumlogger.info('Success: %smin - %smi: %s', round((time.time() - start_time) / 60),
+                           round(inputtx.value / 1000 ** 2), inputtx.bundle_hash)
             break
 
         try:
@@ -173,7 +183,7 @@ def spam(api, txid, trans=None, maxTime=None):
             continue
 
         logger.info('found %s tx in bundle. trying to promote/reattach', len(txhashes))
-        
+
         try:
             trytes = api.get_trytes(txhashes)['trytes']
         except:
@@ -183,38 +193,40 @@ def spam(api, txid, trans=None, maxTime=None):
         for x in trytes:
             tx = iota.Transaction.from_tryte_string(x)
 
-            if (tx.is_tail):
-                if (count < maxCount):
+            if tx.is_tail:
+                if count < max_count:
                     try:
                         if promote(api, tx) and not sleeping:
-                                sleeping = random.randint(1,3)
+                            sleeping = random.randint(1, 3)
                     except:
                         continue
                 else:
                     try:
                         if reattach(api, tx):
                             if not sleeping:
-                                sleeping = random.randint(1,3)
+                                sleeping = random.randint(1, 3)
                             break
                     except:
                         continue
 
-        if (count == maxCount):
-            count = 0            
+        if count == max_count:
+            count = 0
         else:
             count += 1
 
-        logger.info('finished. %s more runs until reattach', maxCount-count)
-        
-        while (sleeping > 0):
+        logger.info('finished. %s more runs until reattach', max_count - count)
+
+        while sleeping > 0:
             logger.info('%s min sleep...', sleeping)
             time.sleep(60)
             sleeping -= 1
 
-        if (maxTime and ((time.time()-startTime) > maxTime)):
-           logger.error('Did take too long (%s).. Will skip', round((time.time()-startTime)/60))
-           sumlogger.info('Timeout: %smin - %smi: %s', round((time.time()-startTime)/60), round(inputtx.value/1000**2), inputtx.bundle_hash)
-           break
+        if max_time and ((time.time() - start_time) > max_time):
+            logger.error('Did take too long (%s).. Will skip', round((time.time() - start_time) / 60))
+            sumlogger.info('Timeout: %smin - %smi: %s', round((time.time() - start_time) / 60),
+                           round(inputtx.value / 1000 ** 2), inputtx.bundle_hash)
+            break
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Promote / Reattach IOTA transaction')
@@ -223,12 +235,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
     api = iota.Iota('http://localhost:14265')
 
-    if (args.tx is not None):
+    if args.tx is not None:
         setup_logging(args.tx, False)
         logger.info('------------------------Start------------------------')
-        spam(api, args.tx, 180*60)
+        spam(api, args.tx, 180 * 60)
         logger.info('------------------------Finish------------------------')
-        
+
     else:
         setup_logging('autopromote')
         logger.info('------------------------Starting Autopromote------------------------')
