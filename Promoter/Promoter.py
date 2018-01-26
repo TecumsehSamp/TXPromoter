@@ -139,8 +139,7 @@ def autopromote(api):
             tx = iota.Transaction.from_tryte_string(x)
             if tx.bundle_hash not in badbundles:
                 try:
-                    if (tx.value > 1000 ** 2) and ((time.time() - tx.timestamp) < 30 * 60) and not is_confirmed(api,
-                                                                                                                tx.bundle_hash):
+                    if (tx.value > 1000 ** 2) and ((time.time() - tx.timestamp) < 30 * 60) and not is_confirmed(api, tx.bundle_hash):
                         spam(api, None, tx, 60 * 60)
                 except:
                     logger.error(traceback.format_exc())
@@ -159,8 +158,7 @@ def spam(api, txid, trans=None, max_time=None):
         inputtx = trans
 
     start_time = time.time()
-    logger.info('start promoting tx (%smin, %smi): %s (%s)', round((start_time - inputtx.timestamp) / 60),
-                round(inputtx.value / 1000 ** 2), inputtx.hash, inputtx.bundle_hash)
+    logger.info('start promoting tx (%smin, %smi): %s (%s)', round((start_time - inputtx.timestamp) / 60), round(inputtx.value / 1000 ** 2), inputtx.hash, inputtx.bundle_hash)
 
     count = 0
     max_count = 5
@@ -172,8 +170,7 @@ def spam(api, txid, trans=None, max_time=None):
             break
         if confirmed:
             logger.info('bundle confirmed: %s', inputtx.bundle_hash)
-            sumlogger.info('Success: %smin - %smi: %s', round((time.time() - start_time) / 60),
-                           round(inputtx.value / 1000 ** 2), inputtx.bundle_hash)
+            sumlogger.info('Success: %smin - %smi: %s', round((time.time() - start_time) / 60), round(inputtx.value / 1000 ** 2), inputtx.bundle_hash)
             break
 
         try:
@@ -223,8 +220,7 @@ def spam(api, txid, trans=None, max_time=None):
 
         if max_time and ((time.time() - start_time) > max_time):
             logger.error('Did take too long (%s).. Will skip', round((time.time() - start_time) / 60))
-            sumlogger.info('Timeout: %smin - %smi: %s', round((time.time() - start_time) / 60),
-                           round(inputtx.value / 1000 ** 2), inputtx.bundle_hash)
+            sumlogger.info('Timeout: %smin - %smi: %s', round((time.time() - start_time) / 60), round(inputtx.value / 1000 ** 2), inputtx.bundle_hash)
             break
 
 
