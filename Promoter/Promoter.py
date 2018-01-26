@@ -210,7 +210,7 @@ def spam(api, txid, trans=None, maxTime=None):
             time.sleep(60)
             sleeping -= 1
 
-        if(maxTime and ((time.time()-startTime) > maxTime)):
+        if (maxTime and ((time.time()-startTime) > maxTime)):
            logger.error('Did take too long (%s).. Will skip', round((time.time()-startTime)/60))
            break
 
@@ -224,7 +224,7 @@ if __name__ == "__main__":
     if (args.tx is not None):
         setup_logging(args.tx)
         logger.info('------------------------Start------------------------')
-        spam(api, args.tx)
+        spam(api, args.tx, 180*60)
         logger.info('------------------------Finish------------------------')
         
     else:
