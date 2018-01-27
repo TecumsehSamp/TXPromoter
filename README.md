@@ -6,7 +6,7 @@ Made this in a few mins.. Hands on logging, not much error handling but it works
 	* node with pow and remote api enabled (need to change api init to that host)
 	* own node where this script can run locally
 * valid python installation that can run this script
-	* install current PyOTA develop branch which is right now commit 033d6ecfd5da347fcf977021d0ea7745ed7008f8 (https://github.com/iotaledger/iota.lib.py/tree/develop)
+	* install current PyOTA 2.0.4 (https://github.com/iotaledger/iota.lib.py/releases/tag/2.0.4)
 
 ## How to use
 * no arguments: autopromotes tips from your localhost. will run indefinitely
