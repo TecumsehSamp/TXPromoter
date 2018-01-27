@@ -1,3 +1,5 @@
 .vs
 .idea
 logs
+*.sln
+.pyproj
