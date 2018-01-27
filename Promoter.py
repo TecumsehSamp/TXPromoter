@@ -188,8 +188,7 @@ def spam(api, txid, trans=None, max_time=None):
         for tx in tails:
             if count < max_count:
                 if promote(api, tx) and not sleeping:
-                    if not sleeping:
-                        sleeping = random.randint(1, 3)
+                    sleeping = random.randint(1, 3)
             else:
                 if reattach(api, tx):
                     if not sleeping:
