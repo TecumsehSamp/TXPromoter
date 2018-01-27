@@ -139,8 +139,8 @@ def autopromote(api):
             tx = iota.Transaction.from_tryte_string(x)
             if tx.bundle_hash not in badbundles:
                 try:
-                    if (tx.value > 1000 ** 2) and ((time.time() - tx.timestamp) < 30 * 60) and not is_confirmed(api, tx.bundle_hash):
-                        spam(api, None, tx, 40 * 60)
+                    if (tx.value > 1000 ** 2) and ((time.time() - tx.timestamp) < 45 * 60) and not is_confirmed(api, tx.bundle_hash):
+                        spam(api, None, tx, 45 * 60)
                 except:
                     logger.error(traceback.format_exc())
                     pass
@@ -229,16 +229,16 @@ if __name__ == "__main__":
     parser.add_argument('-tx')
 
     args = parser.parse_args()
-    api = iota.Iota('http://localhost:14265')
+    node = iota.Iota('http://localhost:14265')
 
     if args.tx is not None:
         setup_logging(args.tx, False)
         logger.info('------------------------Start------------------------')
-        spam(api, args.tx, 180 * 60)
+        spam(node, args.tx, 180 * 60)
         logger.info('------------------------Finish------------------------')
 
     else:
         setup_logging('autopromote')
         logger.info('------------------------Starting Autopromote------------------------')
-        autopromote(api)
+        autopromote(node)
         logger.info('------------------------Finish Autopromote------------------------')
