@@ -80,10 +80,8 @@ def promote(api, tx):
             logger.info('promoted successfully')
             return True
         except iota.adapter.BadApiResponse as err:
-            if 'inconsistent tips pair selected' in err.context['response']['errors'][0]:
-                pass
-            else:
-                logger.error(traceback.format_exc())
+            logger.warning(err)
+            logger.warning(traceback.format_exc())
             return
         except:
             logger.error(traceback.format_exc())
@@ -104,10 +102,8 @@ def reattach(api, tx):
             logger.info('reattached successfully')
             return True
         except iota.adapter.BadApiResponse as err:
-            if 'inconsistent tips pair selected' in err.context['response']['errors'][0]:
-                pass
-            else:
-                logger.error(traceback.format_exc())
+            logger.warning(err)
+            logger.warning(traceback.format_exc())
             return
         except:
             logger.error(traceback.format_exc())
