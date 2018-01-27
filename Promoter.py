@@ -11,19 +11,17 @@ import iota
 
 logger = logging.getLogger('main')
 sumlogger = logging.getLogger('success')
-# TODO: Maybe not needed. Some bundles will make the api call throw (via remote at least) - just exclude them
-badbundles = []
 
 
 def setup_logging(name, summary=True):
-    logdir = os.path.join('logs', time.strftime("%d-%m-%Y"))
-    if not os.path.exists(logdir):
-        os.makedirs(logdir)
+    log_dir = os.path.join('logs', time.strftime("%d-%m-%Y"))
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
 
     os.environ['TZ'] = 'Europe/Amsterdam'
     try:
         time.tzset()
-    except Exception:
+    except:
         pass
 
     logger.setLevel(logging.INFO)
@@ -33,12 +31,12 @@ def setup_logging(name, summary=True):
     ch.setFormatter(formatter)
     logger.addHandler(ch)
 
-    fh = logging.FileHandler(os.path.join(logdir, time.strftime("%H%M%S") + "_" + name))
+    fh = logging.FileHandler(os.path.join(log_dir, time.strftime("%H%M%S") + "_" + name))
     fh.setFormatter(formatter)
     logger.addHandler(fh)
 
     if summary:
-        fh = logging.FileHandler(os.path.join(logdir, time.strftime("%H%M%S") + "_" + name + "_summary"))
+        fh = logging.FileHandler(os.path.join(log_dir, time.strftime("%H%M%S") + "_" + name + "_summary"))
         fh.setFormatter(formatter)
         sumlogger.setLevel(logging.INFO)
         sumlogger.addHandler(fh)
@@ -48,25 +46,24 @@ def get_depth():
     return random.randint(3, 14)
 
 
-def is_confirmed(api, bundlehash):
+def is_confirmed(api, bundle_hash):
     try:
-        txhashes = api.find_transactions([bundlehash])['hashes']
+        tx_hashes = api.find_transactions([bundle_hash])['hashes']
     except:
-        badbundles.append(bundlehash)
         logger.error(traceback.format_exc())
-        raise
+        return
 
-    try:
-        bundlestates = api.get_latest_inclusion(txhashes)['states'].values()
-    except:
-        badbundles.append(bundlehash)
-        logger.error(traceback.format_exc())
-        raise
+    bundle_states = []
+    chunks = [tx_hashes[x:x + 1000] for x in range(0, len(tx_hashes), 1000)]
+    for chunk in chunks:
+        try:
+            bundle_states += api.get_latest_inclusion(chunk)['states'].values()
+        except:
+            logger.error(traceback.format_exc())
+            continue
 
-    if any(confirmed is True for confirmed in bundlestates):
+    if any(confirmed is True for confirmed in bundle_states):
         return True
-    else:
-        return False
 
 
 def promote(api, tx):
@@ -74,7 +71,7 @@ def promote(api, tx):
         promotable = api.helpers.is_promotable(tx.hash)
     except:
         logger.error(traceback.format_exc())
-        raise
+        return
 
     if promotable:
         try:
@@ -87,10 +84,10 @@ def promote(api, tx):
                 pass
             else:
                 logger.error(traceback.format_exc())
-            raise
+            return
         except:
             logger.error(traceback.format_exc())
-            raise
+            return
 
 
 def reattach(api, tx):
@@ -98,7 +95,7 @@ def reattach(api, tx):
         reattachable = api.is_reattachable([tx.address])['reattachable'][0]
     except:
         logger.error(traceback.format_exc())
-        raise
+        return
 
     if reattachable:
         try:
@@ -111,10 +108,10 @@ def reattach(api, tx):
                 pass
             else:
                 logger.error(traceback.format_exc())
-            raise
+            return
         except:
             logger.error(traceback.format_exc())
-            raise
+            return
 
 
 def autopromote(api):
@@ -125,108 +122,102 @@ def autopromote(api):
             logger.error(traceback.format_exc())
             continue
 
-        chunksize = min(len(tips), 1000)
+        chunk_size = min(len(tips), 1000)
 
-        logger.info('found %s tips - checking %s random tips', len(tips), chunksize)
+        logger.info('found %s tips - checking %s random tips', len(tips), chunk_size)
         random.shuffle(tips)
         try:
-            trytes = api.get_trytes(tips[:chunksize])['trytes']
+            trytes = api.get_trytes(tips[:chunk_size])['trytes']
         except:
             logger.error(traceback.format_exc())
             continue
 
         for x in trytes:
             tx = iota.Transaction.from_tryte_string(x)
-            if tx.bundle_hash not in badbundles:
-                try:
-                    if (tx.value > 1000 ** 2) and ((time.time() - tx.timestamp) < 45 * 60) and not is_confirmed(api, tx.bundle_hash):
-                        spam(api, None, tx, 45 * 60)
-                except:
-                    logger.error(traceback.format_exc())
-                    pass
+            if (tx.value > 1000 ** 2) and ((time.time() - tx.timestamp) < 45 * 60) and not is_confirmed(api, tx.bundle_hash):
+                spam(api, None, tx, 45 * 60)
 
 
 def spam(api, txid, trans=None, max_time=None):
     if txid is not None:
         try:
-            trytes = api.get_trytes([iota.TransactionHash(iota.TryteString(txid.encode('ascii')))])['trytes'][0]
+            tx_trytes = api.get_trytes([iota.TransactionHash(iota.TryteString(txid.encode('ascii')))])['trytes'][0]
         except:
             logger.error(traceback.format_exc())
             return
-        inputtx = iota.Transaction.from_tryte_string(trytes)
+        input_tx = iota.Transaction.from_tryte_string(tx_trytes)
     else:
-        inputtx = trans
+        input_tx = trans
 
     start_time = time.time()
-    logger.info('start promoting tx (%smin, %smi): %s (%s)', round((start_time - inputtx.timestamp) / 60), round(inputtx.value / 1000 ** 2), inputtx.hash, inputtx.bundle_hash)
+    logger.info('start promoting tx (%smin, %smi): %s (%s)', round((start_time - input_tx.timestamp) / 60), round(input_tx.value / 1000 ** 2), input_tx.hash, input_tx.bundle_hash)
 
     count = 0
     max_count = 5
     sleeping = 0
     while True:
-        try:
-            confirmed = is_confirmed(api, inputtx.bundle_hash)
-        except:
-            break
-        if confirmed:
-            logger.info('bundle confirmed: %s', inputtx.bundle_hash)
-            sumlogger.info('Success: %smin - %smi: %s', round((time.time() - start_time) / 60), round(inputtx.value / 1000 ** 2), inputtx.bundle_hash)
-            break
+        if is_confirmed(api, input_tx.bundle_hash):
+            logger.info('bundle confirmed: %s', input_tx.bundle_hash)
+            sumlogger.info('Success: %smin - %smi: %s', round((time.time() - start_time) / 60), round(input_tx.value / 1000 ** 2), input_tx.bundle_hash)
+            return
 
         try:
-            txhashes = api.find_transactions([inputtx.bundle_hash])['hashes']
+            tx_hashes = api.find_transactions([input_tx.bundle_hash])['hashes']
         except:
             logger.error(traceback.format_exc())
             continue
 
-        logger.info('found %s tx in bundle. trying to promote/reattach', len(txhashes))
+        logger.info('found %s tx in bundle. trying to promote/reattach', len(tx_hashes))
 
-        try:
-            trytes = api.get_trytes(txhashes)['trytes']
-        except:
-            logger.error(traceback.format_exc())
-            continue
+        tx_trytes = []
+        chunks = [tx_hashes[x:x + 1000] for x in range(0, len(tx_hashes), 1000)]
+        for chunk in chunks:
+            try:
+                tx_trytes += (api.get_trytes(chunk)['trytes'])
+            except:
+                logger.error(traceback.format_exc())
+                continue
 
-        for x in trytes:
-            tx = iota.Transaction.from_tryte_string(x)
+        txs = []
+        for x in tx_trytes:
+            txs.append(iota.Transaction.from_tryte_string(x))
 
-            if tx.is_tail:
-                if count < max_count:
-                    try:
-                        if promote(api, tx) and not sleeping:
-                            sleeping = random.randint(1, 3)
-                    except:
-                        continue
-                else:
-                    try:
-                        if reattach(api, tx):
-                            if not sleeping:
-                                sleeping = random.randint(1, 3)
-                            break
-                    except:
-                        continue
+        tails = list(filter(lambda x: x.is_tail, txs))
+        tails = sorted(tails, key=lambda x: x.attachment_timestamp / 1000, reverse=True)[:min(len(tails), 10)]
+
+        for tx in tails:
+            if count < max_count:
+                if promote(api, tx) and not sleeping:
+                    if not sleeping:
+                        sleeping = random.randint(1, 3)
+            else:
+                if reattach(api, tx):
+                    if not sleeping:
+                        sleeping = random.randint(1, 3)
+                    break
 
         if count == max_count:
             count = 0
         else:
             count += 1
 
-        logger.info('finished. %s more runs until reattach', max_count - count)
+        logger.info('run finished. %s more runs until reattach', max_count - count)
 
         while sleeping > 0:
-            logger.info('%s min sleep...', sleeping)
+            logger.info('%s min wait...', sleeping)
             time.sleep(60)
             sleeping -= 1
 
         if max_time and ((time.time() - start_time) > max_time):
-            logger.error('Did take too long (%s).. Will skip', round((time.time() - start_time) / 60))
-            sumlogger.info('Timeout: %smin - %smi: %s', round((time.time() - start_time) / 60), round(inputtx.value / 1000 ** 2), inputtx.bundle_hash)
-            break
+            logger.error('Did take too long (%s).. Skipping', round((time.time() - start_time) / 60))
+            sumlogger.info('Timeout: %smin - %smi: %s', round((time.time() - start_time) / 60), round(input_tx.value / 1000 ** 2), input_tx.bundle_hash)
+            return
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Promote / Reattach IOTA transaction')
     parser.add_argument('-tx')
+    parser.add_argument('-lul')
 
     args = parser.parse_args()
     node = iota.Iota('http://localhost:14265')
@@ -241,4 +232,3 @@ if __name__ == "__main__":
         setup_logging('autopromote')
         logger.info('------------------------Starting Autopromote------------------------')
         autopromote(node)
-        logger.info('------------------------Finish Autopromote------------------------')
