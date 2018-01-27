@@ -38,7 +38,7 @@ def setup_logging(name, summary=True):
     logger.addHandler(fh)
 
     if summary:
-        fh = logging.FileHandler(os.path.join(logdir, time.strftime("%H%M%S") + "_" + name + "_success"))
+        fh = logging.FileHandler(os.path.join(logdir, time.strftime("%H%M%S") + "_" + name + "_summary"))
         fh.setFormatter(formatter)
         sumlogger.setLevel(logging.INFO)
         sumlogger.addHandler(fh)
@@ -140,7 +140,7 @@ def autopromote(api):
             if tx.bundle_hash not in badbundles:
                 try:
                     if (tx.value > 1000 ** 2) and ((time.time() - tx.timestamp) < 30 * 60) and not is_confirmed(api, tx.bundle_hash):
-                        spam(api, None, tx, 60 * 60)
+                        spam(api, None, tx, 40 * 60)
                 except:
                     logger.error(traceback.format_exc())
                     pass
