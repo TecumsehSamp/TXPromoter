@@ -116,21 +116,23 @@ def autopromote(api):
             tips = api.get_tips()['hashes']
         except:
             logger.error(traceback.format_exc())
+            time.sleep(60)
             continue
 
-        chunk_size = min(len(tips), 1000)
+        logger.info('found %s tips', len(tips))
 
-        logger.info('found %s tips - checking %s random tips', len(tips), chunk_size)
-        random.shuffle(tips)
-        try:
-            trytes = api.get_trytes(tips[:chunk_size])['trytes']
-        except:
-            logger.error(traceback.format_exc())
-            continue
+        trytes = []
+        chunks = [tips[x:x + 1000] for x in range(0, len(tips), 1000)]
+        for chunk in chunks:
+            try:
+                trytes += api.get_trytes(chunk)['trytes']
+            except:
+                logger.error(traceback.format_exc())
+                continue
 
         for x in trytes:
             tx = iota.Transaction.from_tryte_string(x)
-            if (tx.value > 1000 ** 2) and ((time.time() - tx.timestamp) < 45 * 60) and not is_confirmed(api, tx.bundle_hash):
+            if (tx.value > 1000 ** 2) and ((time.time() - tx.timestamp) < 60 * 60) and not is_confirmed(api, tx.bundle_hash):
                 spam(api, None, tx, 45 * 60)
 
 
@@ -161,6 +163,7 @@ def spam(api, txid, trans=None, max_time=None):
             tx_hashes = api.find_transactions([input_tx.bundle_hash])['hashes']
         except:
             logger.error(traceback.format_exc())
+            time.sleep(60)
             continue
 
         logger.info('found %s tx in bundle. trying to promote/reattach', len(tx_hashes))
@@ -220,7 +223,7 @@ if __name__ == "__main__":
     if args.tx is not None:
         setup_logging(args.tx, False)
         logger.info('------------------------Start------------------------')
-        spam(node, args.tx, 180 * 60)
+        spam(node, args.tx, None, 3 * 60 * 60)
         logger.info('------------------------Finish------------------------')
 
     else:
