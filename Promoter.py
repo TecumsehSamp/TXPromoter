@@ -70,7 +70,7 @@ def promote(api, tx):
     try:
         promotable = api.helpers.is_promotable(tx.hash)
     except:
-        logger.error(traceback.format_exc())
+        logger.warning(traceback.format_exc())
         return
 
     if promotable:
@@ -79,12 +79,11 @@ def promote(api, tx):
             api.promote_transaction(tx.hash, get_depth())
             logger.info('promoted successfully')
             return True
-        except iota.adapter.BadApiResponse as err:
-            logger.warning(err)
-            logger.warning(traceback.format_exc())
+        except iota.adapter.BadApiResponse:
+            logger.debug(traceback.format_exc())
             return
         except:
-            logger.error(traceback.format_exc())
+            logger.warning(traceback.format_exc())
             return
 
 
@@ -92,7 +91,7 @@ def reattach(api, tx):
     try:
         reattachable = api.is_reattachable([tx.address])['reattachable'][0]
     except:
-        logger.error(traceback.format_exc())
+        logger.warning(traceback.format_exc())
         return
 
     if reattachable:
@@ -101,12 +100,11 @@ def reattach(api, tx):
             api.replay_bundle(tx.hash, get_depth())
             logger.info('reattached successfully')
             return True
-        except iota.adapter.BadApiResponse as err:
-            logger.warning(err)
-            logger.warning(traceback.format_exc())
+        except iota.adapter.BadApiResponse:
+            logger.debug(traceback.format_exc())
             return
         except:
-            logger.error(traceback.format_exc())
+            logger.warning(traceback.format_exc())
             return
 
 
@@ -115,7 +113,7 @@ def autopromote(api):
         try:
             tips = api.get_tips()['hashes']
         except:
-            logger.error(traceback.format_exc())
+            logger.warning(traceback.format_exc())
             time.sleep(60)
             continue
 
@@ -127,7 +125,7 @@ def autopromote(api):
             try:
                 trytes += api.get_trytes(chunk)['trytes']
             except:
-                logger.error(traceback.format_exc())
+                logger.warning(traceback.format_exc())
                 continue
 
         for x in trytes:
@@ -162,9 +160,13 @@ def spam(api, txid, trans=None, max_time=None):
         try:
             tx_hashes = api.find_transactions([input_tx.bundle_hash])['hashes']
         except:
-            logger.error(traceback.format_exc())
+            logger.warning(traceback.format_exc())
             time.sleep(60)
             continue
+
+        if len(tx_hashes) < 3:
+            logger.warning('what is this bundle? only %s tx', len(tx_hashes))
+            return
 
         logger.info('found %s tx in bundle. trying to promote/reattach', len(tx_hashes))
 
@@ -207,7 +209,7 @@ def spam(api, txid, trans=None, max_time=None):
             sleeping -= 1
 
         if max_time and ((time.time() - start_time) > max_time):
-            logger.error('Did take too long (%s).. Skipping', round((time.time() - start_time) / 60))
+            logger.warning('Did take too long (%s).. Skipping', round((time.time() - start_time) / 60))
             sumlogger.info('Timeout: %smin - %smi: %s', round((time.time() - start_time) / 60), round(input_tx.value / 1000 ** 2), input_tx.bundle_hash)
             return
 
