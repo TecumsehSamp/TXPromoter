@@ -133,6 +133,8 @@ def autopromote(api):
             if (tx.value > 1000 ** 2) and ((time.time() - tx.timestamp) < 60 * 60) and not is_confirmed(api, tx.bundle_hash):
                 spam(api, None, tx, 45 * 60)
 
+        time.sleep(60)
+
 
 def spam(api, txid, trans=None, max_time=None):
     if txid is not None:
@@ -149,7 +151,7 @@ def spam(api, txid, trans=None, max_time=None):
     logger.info('start promoting tx (%smin, %smi): %s (%s)', round((start_time - input_tx.timestamp) / 60), round(input_tx.value / 1000 ** 2), input_tx.hash, input_tx.bundle_hash)
 
     count = 0
-    max_count = 5
+    max_count = 7
     sleeping = 0
     while True:
         if is_confirmed(api, input_tx.bundle_hash):
@@ -189,7 +191,7 @@ def spam(api, txid, trans=None, max_time=None):
         for tx in tails:
             if count < max_count:
                 if promote(api, tx) and not sleeping:
-                    sleeping = random.randint(1, 3)
+                    sleeping = random.randint(0, 1)
             else:
                 if reattach(api, tx):
                     if not sleeping:
@@ -217,7 +219,6 @@ def spam(api, txid, trans=None, max_time=None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Promote / Reattach IOTA transaction')
     parser.add_argument('-tx')
-    parser.add_argument('-lul')
 
     args = parser.parse_args()
     node = iota.Iota('http://localhost:14265')
