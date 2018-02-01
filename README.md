@@ -14,6 +14,30 @@ If anyone is up for creating a proper setup.py or requirements feel free to do t
         * pip install pyota[ccurl]
 
 ## How to use
-* just start the script with:
-    * no arguments: autopromotes tips from your localhost. will run indefinitely
-    * -tx txid: promotes tx until it's confirmed (or a max of 3h is reaching). will exit after that.
+* download the script with curl:
+```
+curl -O https://raw.githubusercontent.com/chrisoro/TXPromoter/master/promoter.py
+```
+* just start the script:
+	* `python promoter.py` Without any argument the script will autopromote tips from your localhost. This will run indefinitely.
+	* `python promoter.py -tx {TXID}` With tx id to promote the specific transaction until it's confirmed (or a max of 3h is reached). The script will exit then.
+
+
+### Running as a service
+You can use [node process manager](http://pm2.keymetrics.io/) to run promoter as a service.
+```
+# Install the process manager:
+npm install pm2 -g
+
+# Make pm2 start at startup:
+pm2 startup
+
+# Start the promoter as service (make sure you are within the same directory as promoter.py!)
+pm2 start promoter
+
+# Save current processes runing with pm2 to startup on boot:
+pm2 save
+
+# Get logs:
+pm2 logs promoter
+```
