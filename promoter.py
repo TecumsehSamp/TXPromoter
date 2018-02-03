@@ -11,6 +11,7 @@ import iota
 
 logger = logging.getLogger('main')
 sumlogger = logging.getLogger('success')
+bad_bundles = []
 
 
 def setup_logging(name, summary=True):
@@ -130,7 +131,7 @@ def autopromote(api):
 
         for x in trytes:
             tx = iota.Transaction.from_tryte_string(x)
-            if (tx.value > 1000 ** 2) and ((time.time() - tx.timestamp) < 60 * 60) and not is_confirmed(api, tx.bundle_hash):
+            if (tx.bundle_hash not in bad_bundles) and (tx.value > 1000 ** 2) and ((time.time() - tx.timestamp) < 60 * 60) and not is_confirmed(api, tx.bundle_hash):
                 spam(api, None, tx, 45 * 60)
 
         time.sleep(60)
@@ -168,6 +169,7 @@ def spam(api, txid, trans=None, max_time=None):
 
         if len(tx_hashes) < 3:
             logger.warning('what is this bundle? only %s tx', len(tx_hashes))
+            bad_bundles.append(input_tx.bundle_hash)
             return
 
         logger.info('found %s tx in bundle. trying to promote/reattach', len(tx_hashes))
@@ -190,8 +192,7 @@ def spam(api, txid, trans=None, max_time=None):
 
         for tx in tails:
             if count < max_count:
-                if promote(api, tx) and not sleeping:
-                    sleeping = random.randint(0, 1)
+                promote(api, tx)
             else:
                 if reattach(api, tx):
                     if not sleeping:
